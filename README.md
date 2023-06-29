@@ -1,6 +1,6 @@
 # RL³: Boosting Meta Reinforcement Learning via RL inside RL². 
 
-Source code for the paper RL³: Boosting Meta Reinforcement Learning via RL inside RL².
+Source code for the paper [RL³: Boosting Meta Reinforcement Learning via RL inside RL²](https://arxiv.org/abs/2306.15909).
 
 Authors: Abhinav Bhatia, Samer B. Nashed, and Shlomo Zilberstein
 
