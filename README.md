@@ -4,6 +4,9 @@ Source code for the paper [RL³: Boosting Meta Reinforcement Learning via RL ins
 
 Authors: Abhinav Bhatia, Samer B. Nashed, and Shlomo Zilberstein
 
+See demo: https://youtu.be/sTQ9vFC53-k
+
+
 ## Installation
 
 Install Julia version 1.9.x from https://julialang.org/downloads/
