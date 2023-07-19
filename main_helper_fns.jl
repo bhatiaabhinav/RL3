@@ -4,6 +4,7 @@ using Random
 using MDPs
 using MetaMDPs
 using Flux
+using CUDA
 using BSON
 using PPO
 using Dates
@@ -106,7 +107,6 @@ function test_random_policy(problem; add_time_context=false, seed=0, kwargs...)
     return score, [], []
 end
 
-# TODO: Create timelimit wrapper
 
 function do_ppo_learning(experiment_name, problem, iters; problem_batch, model, dmodel, lr, log_interval, model_save_interval, nsteps, nepochs, ent_bonus, kl_target, ppo_epsilon, lambda, seed,  advantagenorm, device, adam_eps, adam_wd, clipnorm, minibatch_size, progressmeter, video, video_interval, act_greedy, nheads, ndecoders, test_model, extrapolate_from, decay_ent_bonus, decay_lr, config, kwargs...)
     metamdp, metamdp_test, meta_problem = make_metamdp(problem; add_time_context=true)
@@ -131,18 +131,18 @@ function do_ppo_learning(experiment_name, problem, iters; problem_batch, model, 
             embed_layer_critic.weight .*= Float32(sqrt(dmodel))
             pe_layer_critic = LearnedPositionalEncoder(dmodel, 1024)
             critic_model = Chain(embed_layer_critic, LayerNorm(dmodel), pe_layer_critic, Decoder(dmodel, dim_k, dim_v, nheads, dim_ff, ndecoders; dropout=false, no_encoder=true), Dense(dmodel, 1))
-            p = PPOActorDiscrete{T}(TRANSFORMER, actor_model, false, n, (TH, extrapolate_from, H))
-            gp = PPOActorDiscrete{T}(TRANSFORMER, actor_model, true, n, (TH, extrapolate_from, H))
+            p = PPOActorDiscrete{T}(actor_model, false, aspace, TRANSFORMER)
+            gp = PPOActorDiscrete{T}(actor_model, true, aspace, TRANSFORMER)
         elseif model == "rnn"
             actor_model = Chain(Dense(n+1+1+m, dmodel, relu), GRUv3(dmodel, 4*dmodel), Dense(4*dmodel, n))
             critic_model = Chain(Dense(n+1+1+m, dmodel, relu), GRUv3(dmodel, 4*dmodel), Dense(4*dmodel, 1))
-            p = PPOActorDiscrete{T}(RECURRENT, actor_model, false, n, ())
-            gp = PPOActorDiscrete{T}(RECURRENT, actor_model, true, n, ())
+            p = PPOActorDiscrete{T}(actor_model, false, aspace, RECURRENT)
+            gp = PPOActorDiscrete{T}(actor_model, true, aspace, RECURRENT)
         elseif model == "markov"
             actor_model = Chain(Dense(n+1+1+m, dmodel, relu), Dense(dmodel, dmodel, relu), Dense(dmodel, n))
             critic_model = Chain(Dense(n+1+1+m, dmodel, relu), Dense(dmodel, dmodel, relu), Dense(dmodel, 1))
-            p = PPOActorDiscrete{T}(MARKOV, actor_model, false, n, ())
-            gp = PPOActorDiscrete{T}(MARKOV, actor_model, true, n, ())
+            p = PPOActorDiscrete{T}(actor_model, false, aspace, MARKOV)
+            gp = PPOActorDiscrete{T}(actor_model, true, aspace, MARKOV)
         else
             error("What's a $model?")
         end
@@ -169,14 +169,14 @@ function do_ppo_learning(experiment_name, problem, iters; problem_batch, model, 
         
         @info "Loaded models"
         if model == "transformer"
-            p = PPOActorDiscrete{T}(TRANSFORMER, actor_model, false, n, (TH, extrapolate_from, H))
-            gp = PPOActorDiscrete{T}(TRANSFORMER, actor_model, true, n, (TH, extrapolate_from, H))
+            p = PPOActorDiscrete{T}(actor_model, false, aspace, TRANSFORMER)
+            gp = PPOActorDiscrete{T}(actor_model, true, aspace, TRANSFORMER)
         elseif model == "rnn"
-            p = PPOActorDiscrete{T}(RECURRENT, actor_model, false, n, ())
-            gp = PPOActorDiscrete{T}(RECURRENT, actor_model, true, n, ())
+            p = PPOActorDiscrete{T}(actor_model, false, aspace, RECURRENT)
+            gp = PPOActorDiscrete{T}(actor_model, true, aspace, RECURRENT)
         elseif model == "markov"
-            p = PPOActorDiscrete{T}(MARKOV, actor_model, false, n, ())
-            gp = PPOActorDiscrete{T}(MARKOV, actor_model, true, n, ())
+            p = PPOActorDiscrete{T}(actor_model, false, aspace, MARKOV)
+            gp = PPOActorDiscrete{T}(actor_model, true, aspace, MARKOV)
         else
             error("What's a $model?")
         end 
