@@ -9,7 +9,6 @@ using BSON
 using PPO
 using Dates
 using Bandits
-using MDPVideoRecorder
 using Transformers
 using Flux: glorot_normal, orthogonal, Recur, zeros32
 
@@ -149,7 +148,7 @@ function do_ppo_learning(experiment_name, problem, iters; problem_batch, model, 
 
         metamdps_batch = [make_metamdp(pb; add_time_context=true)[1] for pb in problem_batch]
         metamdps_batch = [EvidenceObservationWrapper{T}(mdp) for mdp in metamdps_batch]
-        ppol = PPOLearner(envs = metamdps_batch, actor=p, critic=critic_model, nsteps=nsteps, trajs_per_minibatch = minibatch_size ÷ nsteps, nepochs=nepochs, entropy_bonus=ent_bonus, decay_ent_bonus=decay_ent_bonus, clipnorm=clipnorm, normalize_advantages = advantagenorm, lr_critic=lr, lr_actor=lr, decay_lr=decay_lr, device=device, ppo=true, kl_target=kl_target, ϵ=ppo_epsilon, λ=lambda, adam_epsilon=adam_eps, adam_weight_decay=adam_wd, early_stop_critic=false, progressmeter=progressmeter)
+        ppol = PPOLearner(envs = metamdps_batch, actor=p, critic=critic_model, nsteps=nsteps, batch_size = minibatch_size, nepochs=nepochs, entropy_bonus=ent_bonus, decay_ent_bonus=decay_ent_bonus, clipnorm=clipnorm, normalize_advantages = advantagenorm, lr_critic=lr, lr_actor=lr, decay_lr=decay_lr, device=device, ppo=true, kl_target=kl_target, ϵ=ppo_epsilon, λ=lambda, adam_epsilon=adam_eps, adam_weight_decay=adam_wd, early_stop_critic=false, progressmeter=progressmeter)
 
         get_stats() = ppol.stats
 
@@ -158,9 +157,9 @@ function do_ppo_learning(experiment_name, problem, iters; problem_batch, model, 
             dirname = "videos/$name"
             rm(dirname, recursive=true, force=true)
             mkpath(dirname)
-            rs, ls = interact(metamdp, act_policy, γ, H, iters, ppol, StatsPrintHook(get_stats, log_interval), ProgressMeterHook(), ModelsSaveHook((actor_model, critic_model), name, model_save_interval), VideoRecorder(dirname, "mp4"; interval=video_interval), GCHook(); rng=Xoshiro(seed), vmax=100);
+            rs, ls = interact(metamdp, act_policy, γ, H, iters, ppol, LoggingHook(get_stats; n=log_interval), ProgressMeterHook(), ModelsSaveHook((actor_model, critic_model), name, model_save_interval), VideoRecorderHook(dirname, interval=video_interval; vmax=100), GCHook(); rng=Xoshiro(seed));
         else
-            rs, ls = interact(metamdp, act_policy, γ, H, iters, ppol, StatsPrintHook(get_stats,  log_interval), ProgressMeterHook(), ModelsSaveHook((actor_model, critic_model), name, model_save_interval), GCHook(); rng=Xoshiro(seed));
+            rs, ls = interact(metamdp, act_policy, γ, H, iters, ppol, LoggingHook(get_stats; n=log_interval), ProgressMeterHook(), ModelsSaveHook((actor_model, critic_model), name, model_save_interval), GCHook(); rng=Xoshiro(seed));
         end
 
         iters = 1000 # for Testing
@@ -184,12 +183,11 @@ function do_ppo_learning(experiment_name, problem, iters; problem_batch, model, 
 
     println("Testing policy. Greedy=$(act_greedy)")
     test_policy = act_greedy ? gp : p
-    metamdp_test.update_stats = false
     if video
         dirname = "finalvids/$name-greedy-$act_greedy"
         rm(dirname, recursive=true, force=true)
         mkpath(dirname)
-        Rs = interact(metamdp_test, test_policy, γ, H, iters, ProgressMeterHook(), VideoRecorder(dirname, "mp4"; interval=video_interval), GCHook(); rng=Xoshiro(seed), vmax=100)[1];
+        Rs = interact(metamdp_test, test_policy, γ, H, iters, ProgressMeterHook(), VideoRecorderHook(dirname, video_interval; vmax=100), GCHook(); rng=Xoshiro(seed))[1];
         score = mean(Rs)
         score_std = std(Rs)
         score_ste = score_std / sqrt(length(Rs))
